@@ -1,9 +1,14 @@
 
+#include "hal/alarm.h"
+#include "hal/watchdog.h"
+
 #include "modules/link.h"
 #include "modules/module.h"
 #include "modules/sensors.h"
 #include "modules/control.h"
 #include "modules/parameters.h"
+
+#include "util/alarm.h"
 
 #define DEBUG
 #define DEBUG_MODULE "main"
@@ -45,5 +50,30 @@ void mainLoop(void)
     // TODO: link module exited, attempt recovery
   }
 
-  // TODO: Failure actions (alarm, watchdog)
+  // Scan through all alarms, looking for any set warning that need to be addressed
+  struct alarmProperties properties = {0};
+  if (alarmCheckAll(&properties)) {
+    // At least one alarm has fired, determine correct actions
+    if (!properties.preventWatchdog) {
+      watchdogHalReset();
+    }
+    
+    switch (properties.priority) {
+      case ALARM_PRIORITY_SEVERE:
+      alarmHalRing(ALARM_HAL_CONSTANT);
+      break;
+      case ALARM_PRIORITY_HIGH:
+      alarmHalRing(ALARM_HAL_1HZ);
+      break;
+      case ALARM_PRIORITY_MODERATE:
+      alarmHalRing(ALARM_HAL_0_25HZ);
+      break;
+      case ALARM_PRIORITY_LOW:
+      alarmHalRing(ALARM_HAL_OFF);
+      break;
+    }
+  } else {
+    watchdogHalReset();
+    alarmHalRing(ALARM_HAL_OFF);
+  }
 }
